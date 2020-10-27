@@ -1,0 +1,36 @@
+<%- include('imports', { imports }) %>
+
+<% typedefs.forEach((typedef) => { %>
+<%- include('typedef', { typedef }) %>
+<% }) %>
+
+<% apis.forEach((api) => { %>
+export class <%- api.name %> extends Client {
+    constructor(parent?: Client) {
+        super(new Client(parent<%- api.path ? `, '${ api.path }'` : '' %>));
+    }
+    <% api.operations.forEach((operation) => { %>
+    /** <% operation.jsdoc.split('\n').forEach((line) => { %>
+     * <%- line %><% }) %>
+     */
+    async <%- operation.name %>(<%- operation.parameters.map(p => `${p.name}: ${p.type}`).join(', ') %>): Promise<<%- operation.returnType %>> {
+        let res = await this.request({
+            path: `<%- operation.path.replace(/{([^{}]+)}/, (_, match) => `\${${match}}`) %>`,
+            method: '<%- operation.method %>',
+        });
+	<% if (operation.responses.length > 0) { %>
+	<% for (const { contentType, statusCode, translation } of operation.responses) { %>
+	if (res.status === <%- statusCode %> && res.headers['Content-Type'] === '<%- contentType %>') {
+	    return res.<%- translation %>;
+	} else <% } %> {
+	    return res;
+	}
+
+        return res<%- operation.responseTranslation ? '.' + operation.responseTranslation : '' %>;
+	<% } else { %>
+	return res;
+	<% } %>
+    }
+    <% }) %>
+}
+<% }) %>

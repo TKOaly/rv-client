@@ -1,0 +1,3 @@
+<% imports.forEach(({ short_name, local_name, source }) => { %>
+import { <% if (short_name !== local_name) { %><%- short_name %> as <% } %><%- local_name %> } from '<%- source %>';
+<% }) %>

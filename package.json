@@ -5,7 +5,9 @@
   "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "codegen": "tsc codegen/index.ts --outDir build && node build/index.js"
+    "codegen": "node codegen/index.js",
+    "transpile": "tsc --esModuleInterop out/index.ts",
+    "build": "npm run codegen &&  && npm run transpile"
   },
   "author": "Mitja Karhusaari <mitja.karhusaari@helsinki.fi>",
   "license": "MIT",
@@ -16,12 +18,22 @@
     "@types/node": "^14.11.11",
     "@types/url-join": "^4.0.0",
     "axios": "^0.19.0",
+    "del": "^6.0.0",
     "ejs": "^3.1.5",
+    "ejs-lint": "^1.1.0",
+    "gulp": "^4.0.2",
+    "gulp-clean": "^0.4.0",
+    "gulp-cli": "^2.3.0",
+    "gulp-print": "^5.0.2",
+    "gulp-typedoc": "^2.2.5",
+    "gulp-typescript": "^6.0.0-alpha.1",
+    "gutil": "^1.6.4",
     "js-beautify": "^1.13.0",
     "jsdoc": "^3.6.6",
     "openapi3-ts": "^2.0.0",
     "typedoc": "^0.19.2",
-    "url-join": "^4.0.1"
+    "url-join": "^4.0.1",
+    "vinyl": "^2.2.1"
   },
   "devDependencies": {
     "@types/ejs": "^3.0.5",

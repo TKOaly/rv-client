@@ -1,0 +1,5 @@
+<%- include('imports', { imports: exports }) %>
+
+export {
+  <%- exports.map((e) => e.local_name).join(', \n  ') %>
+};

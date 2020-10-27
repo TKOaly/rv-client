@@ -1,0 +1,16 @@
+<% if (typedef.description) { %>
+/** <% typedef.description.split('\n').forEach((line) => { %>
+ * <%- line %><% }) %>
+ */ <% } if (typedef.type === 'object') { %>
+export interface <%- typedef.name %> { <% Object.entries(typedef.properties).forEach(([name, prop]) => { %><% if (prop.jsdoc) { %>
+  /** <% prop.jsdoc.split('\n').forEach((line) => { %>
+   * <%- line %><% }) %>
+   */ <%}%>
+  <%- name %>: <%- prop.type %>;<% }) %>
+} <% } else if (typedef.type === 'array') { %>
+export type <%- typedef.name %> = <%- typedef.item %>[];
+<% } else if (typedef.type === 'enum') { %>
+export type <%- typedef.name %> = <%- typedef.variants.join(' | ') %>;
+<% } else if (typedef.type === 'union') { %>
+export type <%- typedef.name %> = <%- typedef.members.join(' & ') %>;
+<% } %>
