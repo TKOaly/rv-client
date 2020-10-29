@@ -186,7 +186,7 @@ class Scope {
   import(name, local_name = null) {
     // Find an existing import of the same symbol.
     const existing = Object.values(this.table)
-      .find(({ type, source }) => type === 'import' && source === name);
+      .find(({ type, source, local_name }) => (type === 'import' && source === name) || (type === 'definition' && local_name === name ));
 
     // Do not add redundant import, if we already
     // have what we want in the scope.
@@ -528,8 +528,6 @@ class FileCodegen {
       entry.type === 'definition' &&
       entry.spec_path === schema.$path);
 
-    console.log(symbol);
-
     if (symbol) {
       return this.scope.import(symbol.local_name);
     }
@@ -564,7 +562,6 @@ class FileCodegen {
     }
 
     if (schema.type === undefined) {
-      console.log(schema);
       return 'any';
     }
 
@@ -644,10 +641,26 @@ class FileCodegen {
     let name = operation.operationId || operation['x-codegen-method-name'] ||
       path.replace(/[{}]/g, '').split('/').map(capitalize).join('') + capitalize(method);
 
+    const scopeVariables = ['res'];
+
+    const getUniqueSymbolName = (base) => {
+      let name = base;
+      let nonce = 1;
+
+      while (scopeVariables.indexOf(name) !== -1) {
+        nonce += 1;
+        name = `${base}${nonce}`;
+      }
+
+      scopeVariables.push(name);
+      return name;
+    };
+
     let parameters = (operation.parameters || [])
       .map((param) => this.spec.dereference(param))
       .map((param) => ({
-        name: param.name,
+        argument_name: getUniqueSymbolName(param.name),
+        path_name: param.name,
         type: this.resolveSchemaType(param.schema),
         description: param.description,
       }));
@@ -702,8 +715,6 @@ class FileCodegen {
               contentType,
               translation: props[0],
             });
-
-            console.log(schema);
           }
         }
 
@@ -719,13 +730,28 @@ class FileCodegen {
 
     this.operations.push({
       name,
-      path,
+      path: this.generatePathExpression(operation, path, parameters),
       method,
       jsdoc: this.generateOperationJsdoc(operation),
       parameters,
       returnType: removeDuplicates(returnTypes).join(' | '),
       responses,
     });
+  }
+
+  generatePathExpression(operation, path, parameters) {
+    const inner = path.replace(/{([^}]+)}/g, (_, p1) => {
+      const param = parameters
+        .find((param) => param.path_name === p1);
+
+      if (param === undefined) {
+        throw new Error(`parameter '${p1}' used in path but not defined (${operation.operationId})`);
+      }
+
+      return '${' + param.argument_name + '}';
+    });
+
+    return '`' + inner + '`';
   }
 
   /**
