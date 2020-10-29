@@ -25,6 +25,8 @@ jobs:
         path: backend
     - name: Setup Node.js
       uses: actions/setup-node@v1
+    - name: Install dependencies
+      run: npm install
     - name: Install Gulp
-      run: npm i -g gulp-cli
+      run: npm install -g gulp-cli
     - run: gulp build
