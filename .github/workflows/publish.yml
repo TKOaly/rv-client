@@ -14,13 +14,6 @@ jobs:
     steps:
     - name: Checkout repository 'TKOaly/rv-client'
       uses: actions/checkout@v2
-    - name: Checkout repository 'TKOaly/rv-backend'
-      uses: actions/checkout@v2
-      with:
-        repository: TKOaly/rv-backend
-        ref: develop
-        token: ${{ secrets.GH_PAT }}
-        path: backend
     - name: Setup Node.js
       uses: actions/setup-node@v1
     - name: Install dependencies
