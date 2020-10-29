@@ -1,0 +1,56 @@
+# This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
+# For more information see: https://help.github.com/actions/language-and-framework-guides/publishing-nodejs-packages
+
+name: Publish Package
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository 'TKOaly/rv-client'
+      uses: actions/checkout@v2
+    - name: Checkout repository 'TKOaly/rv-backend'
+      uses: actions/checkout@v2
+      with:
+        repository: TKOaly/rv-backend
+        ref: develop
+        token: ${{ secrets.GH_PAT }}
+        path: backend
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+    - name: Install dependencies
+      run: npm install
+    - name: Install Gulp
+      run: npm install -g gulp-cli
+    - run: gulp build
+
+  publish-gpr:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository 'TKOaly/rv-client'
+        uses: actions/checkout@v2
+      - name: Checkout repository 'TKOaly/rv-backend'
+        uses: actions/checkout@v2
+        with:
+          repository: TKOaly/rv-backend
+          ref: develop
+          token: ${{ secrets.GH_PAT }}
+          path: backend
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+      - name: Install dependencies
+        run: npm install
+      - name: Install Gulp
+        run: npm install -g gulp-cli
+      - name: Build and transpile
+        run: gulp build
+      - name: Publish package to Github Package Registry
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
