@@ -30,3 +30,11 @@ jobs:
     - name: Install Gulp
       run: npm install -g gulp-cli
     - run: gulp build
+    - uses: actions/upload-artifact@v2
+      with:
+        name: compiled
+        path: dist/
+    - uses: actions/upload-artifact@v2
+      with:
+        name: source
+        path: build/
