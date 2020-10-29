@@ -1,5 +1,5 @@
 {
-  "name": "rv-client",
+  "name": "@tkoaly/rv-client",
   "version": "0.0.2",
   "description": "Client for the Ruokavälitys HTTP API",
   "main": "src/index.js",
