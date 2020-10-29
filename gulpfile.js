@@ -5,13 +5,13 @@ const typedoc = require('gulp-typedoc');
 const del = require('del');
 
 const codegen = () => {
-  return _codegen('/home/kmitja/Code/new-rv/rv-backend/openapi.yaml')
+  return _codegen('backend/openapi.yaml')
     .pipe(src('src/**/*.ts'))
     .pipe(dest('build/'))
 };
 
 const build = () => {
-  return _codegen('/home/kmitja/Code/new-rv/rv-backend/openapi.yaml')
+  return _codegen('backend/openapi.yaml')
     .pipe(src('src/**/*.ts'))
     .pipe(dest('build/'))
     .pipe(ts({
@@ -21,7 +21,7 @@ const build = () => {
 };
 
 const docs = () => {
-  return _codegen('/home/kmitja/Code/new-rv/rv-backend/openapi.yaml')
+  return _codegen('backend/openapi.yaml')
     .pipe(src('src/**/*.ts'))
     .pipe(dest('build/'))
     .pipe(typedoc({
