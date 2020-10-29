@@ -17,6 +17,7 @@ export class <%- api.name %> extends Client {
         let res = await this.request({
             path: <%- operation.path %>,
             method: '<%- operation.method %>',
+            <% if (operation.bodyParameter) { %>body: <%- operation.bodyParameter %><% } %>
         });
 	<% if (operation.responses.length > 0) { %>
 	<% for (const { contentType, statusCode, translation } of operation.responses) { %>

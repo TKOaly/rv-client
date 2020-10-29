@@ -665,6 +665,8 @@ class FileCodegen {
         description: param.description,
       }));
 
+    let bodyParameter = null;
+
     if (
       operation.requestBody &&
       operation.requestBody.content &&
@@ -674,8 +676,10 @@ class FileCodegen {
       const requestSchema = operation.requestBody.content['application/json'].schema;
       const requestType = this.resolveSchemaType(requestSchema, capitalize(name) + 'Request');
 
+      bodyParameter = getUniqueSymbolName('payload');
+
       parameters.push({
-        name: 'payload',
+        argument_name: bodyParameter,
         type: requestType,
         description: 'Request body',
       });
@@ -736,6 +740,7 @@ class FileCodegen {
       parameters,
       returnType: removeDuplicates(returnTypes).join(' | '),
       responses,
+      bodyParameter,
     });
   }
 
