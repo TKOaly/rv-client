@@ -19,7 +19,7 @@ jobs:
     - name: Checkout repository 'TKOaly/rv-backend'
       uses: actions/checkout@v2
       with:
-        repository: https://github.com/TKOaly/rv-backend
+        repository: TKOaly/rv-backend
         ref: develop
         token: ${{ secrets.GH_PAT }}
         path: backend
