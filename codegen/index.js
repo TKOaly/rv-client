@@ -90,15 +90,16 @@ function deref(doc, path = '#', root = undefined) {
     ret = doc.map((item, index) => deref(item, `${path}/${index}`, root));
   } else if (typeof doc === 'object') {
     if (doc.$ref !== undefined) {
+      path = doc.$ref;
       ret = {
         '$ref': doc.$ref,
-        ... deref(resolve(_root, doc.$ref), doc.$ref.substring(2).split('/').join('.'), root),
+        ... deref(resolve(_root, doc.$ref), doc.$ref, _root),
       };
     } else {
       const _ret = {};
 
       for (const [prop, value] of Object.entries(doc)) {
-        _ret[prop] = deref(value, `${path}/${prop.replace(/\//g, '\\/')}`, root);
+        _ret[prop] = deref(value, `${path}/${prop.replace(/\//g, '\\/')}`, _root);
       }
 
       ret = _ret;
@@ -522,22 +523,24 @@ class FileCodegen {
 
     // If the schema points to a schema object under `#/components/schemas`,
     // create a typedef for the schema or import an existing one.
-    if (schemaMatch) {
-      const symbol = this.scope.find((entry) =>
-        entry.type === 'definition' &&
-        entry.spec_path === schema.$path);
+    // if (schemaMatch) {
+    const symbol = this.scope.find((entry) =>
+      entry.type === 'definition' &&
+      entry.spec_path === schema.$path);
 
-      if (symbol) {
-        return this.scope.import(symbol.local_name);
-      }
+    console.log(symbol);
 
-      const short_name = schema.$path.split('/').pop();
+    if (symbol) {
+      return this.scope.import(symbol.local_name);
+    }
+
+    /*const short_name = schema.$path.split('/').pop();
       let remote_schema = this.spec.resolve(schema.$path);
 
       this.generateTypedef(short_name, remote_schema);
 
       return short_name;
-    }
+    }*/
 
     if (schema.allOf) {
       return schema.allOf
@@ -561,6 +564,7 @@ class FileCodegen {
     }
 
     if (schema.type === undefined) {
+      console.log(schema);
       return 'any';
     }
 
@@ -683,6 +687,24 @@ class FileCodegen {
             contentType,
             translation,
           });
+        } else if (schema.type === 'object') {
+          const props = Object.keys(schema.properties || {})
+            .filter(p => p !== '$path');
+
+          if (
+            schema.type === 'object' &&
+            schema.properties &&
+            props.length === 1
+          ) {
+            schema = schema.properties[props[0]];
+            responses.push({
+              statusCode,
+              contentType,
+              translation: props[0],
+            });
+
+            console.log(schema);
+          }
         }
 
         returnTypes.push(
@@ -751,10 +773,14 @@ class FileCodegen {
         .map((entry) => {
           const source_symbol = this.scope.getEntry(entry.source);
 
-          const source_path = path.relative(
+          let source_path = path.relative(
             path.dirname(this.filename),
             source_symbol.defined_in,
           );
+
+          if (source_path[0] !== '.') {
+            source_path = './' + source_path;
+          }
 
           return {
             short_name: source_symbol.local_name.split('.').pop(),
