@@ -1,8 +1,8 @@
 {
   "name": "@tkoaly/rv-client",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Client for the Ruokavälitys HTTP API",
-  "main": "src/index.js",
+  "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "codegen": "node codegen/index.js",
@@ -41,6 +41,6 @@
     "nodets": "0.0.1",
     "ts-node": "^9.0.0",
     "typescript": "^4.0.3",
-    "rv-backend": "git://github.com/TKOaly/rv-backend.git#develop"
+    "rv-backend": "git://github.com/TKOaly/rv-backend.git#370e84f012785c56f85b9cb67725403e0bc61199"
   }
 }
