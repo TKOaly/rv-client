@@ -6,17 +6,10 @@ const util = require('util');
 const stream = require('stream');
 const Vinyl = require('vinyl');
 
+const { statusCodeNames } = require('./http'); 
+
 const readFile = util.promisify(fs.readFile);
 const writeFile = util.promisify(fs.writeFile);
-
-const statusCodeNames = {
-  [200]: 'Success',
-  [201]: 'Created',
-  [204]: 'Empty',
-  [404]: 'NotFound',
-  [403]: 'BadRequest',
-  [401]: 'Unauthorized',
-};
 
 function removeDuplicates(array) {
   const newArray = [];
