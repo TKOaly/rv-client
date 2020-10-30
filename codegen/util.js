@@ -26,7 +26,21 @@ function capitalize(s) {
     return s[0].toUpperCase() + s.substring(1);
 }
 
+function escape(string, toEscape) {
+  let result = '' + string;
+
+  for (let i = 0; i < result.length; i++) {
+    if (toEscape.indexOf(result[i]) !== -1 || result[i] === '\\') {
+      result = result.substring(0, i) + '\\' + result.substring(i);
+      i += 1;
+    }
+  }
+
+  return result;
+}
+
 module.exports = {
   removeDuplicates,
   capitalize,
+  escape,
 };

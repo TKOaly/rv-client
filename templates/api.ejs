@@ -13,23 +13,25 @@ export class <%- api.name %> extends Client {
     /** <% operation.jsdoc.split('\n').forEach((line) => { %>
      * <%- line %><% }) %>
      */
-    async <%- operation.name %>(<%- operation.parameters.map(p => `${p.argument_name}: ${p.type}`).join(', ') %>): Promise<<%- operation.returnType %>> {
+    async <%- operation.name %>(<%- operation.parameters.map(p => `${p.argument_name}: ${p.type}`).join(', ') %>):
+      Promise<<%- operation.returnType %>>
+    {
         let res = await this.request({
             path: <%- operation.path %>,
             method: '<%- operation.method %>',
             <% if (operation.bodyParameter) { %>body: <%- operation.bodyParameter %><% } %>
         });
-	<% if (operation.responses.length > 0) { %>
-	<% for (const { contentType, statusCode, translation } of operation.responses) { %>
-	if (res.status === <%- statusCode %> && res.headers['Content-Type'] === '<%- contentType %>') {
-	    return res.<%- translation %>;
-	} else <% } %> {
-	    return res;
-	}
+	<% if (operation.responseTranslations.length > 0) { %>
+	<% for (const { contentType, statusCode, translation } of operation.responseTranslations) { %>
+        if (res.status === <%- statusCode %> && res.headers['Content-Type'] === '<%- contentType %>') {
+            return res.<%- translation %>;
+        } else <% } %> {
+            return res;
+        }
 
         return res<%- operation.responseTranslation ? '.' + operation.responseTranslation : '' %>;
 	<% } else { %>
-	return res;
+        return res;
 	<% } %>
     }
     <% }) %>

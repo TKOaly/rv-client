@@ -5,10 +5,11 @@ const path = require('path');
 const util = require('util');
 const stream = require('stream');
 const Vinyl = require('vinyl');
+const _ = require('lodash');
 
 const { statusCodeNames } = require('./http'); 
 const { createOpenApiObject } = require('./openapi');
-const { capitalize, removeDuplicates } = require('./util');
+const { capitalize, removeDuplicates, escape } = require('./util');
 const { Scope } = require('./scope');
 
 const readFile = util.promisify(fs.readFile);
@@ -18,31 +19,21 @@ class Codegen {
   constructor (spec) {
     this.spec = spec;
     this.apis = [];
-
-    this.stream = new stream.Readable({
-      objectMode: true,
-    });
-
-    this.stream._read = () => {};
   }
 
   /**
-   * Resolves the API into which a given operation belongs.
+   * Returns the API object, into which the operation belongs.
+   *
+   * APIs correspond to tags defined in the OpenApi document,
+   * which have the `x-codegen-class` property in their tag definition.
    */
   resolveApi(operation) {
-    const tags = operation.tags || [];
-    let className = null;
-
-    for (const tag of tags) {
-      let tagDefs = this.spec.tags || [];
-
-      const def = tagDefs.find((tagDef) => tagDef.name === tag);
-
-      if (def && def['x-codegen-class']) {
-        className = def['x-codegen-class'];
-        break;
-      }
-    }
+    // Find the first tag, which has an associated `x-codegen-class` property.
+    const className = (operation.tags || [])
+      .map((tag) => (this.spec.tags || []).find(def => def.name === tag))
+      .filter(def => def && def['x-codegen-class'])
+      .map((def) => def['x-codegen-class'])
+      .find(() => true);
 
     if (className === null) {
       className = 'DefaultApi';
@@ -62,25 +53,21 @@ class Codegen {
     return api;
   }
 
-  async emit(codegen) {
-    const contents = await codegen.render();
+  getOperations() {
+    const paths = this.spec.paths || {};
+    const operations = [];
 
-    this.stream.push(new Vinyl({
-      path: codegen.filename,
-      contents: Buffer.from(contents),
-    }));
-  }
+    for (const [path, value] of Object.entries(paths)) {
+      for (const [method, operation] of Object.entries(value)) {
+        operations.push({
+          path,
+          method,
+          operation,
+        });
+      }
+    }
 
-  emitFile (path, typedefs, api = undefined) {
-    const template = fs.readFileSync('./templates/api.ejs');
-
-    const rendered = ejs.render(String(template), {
-      imports: [],
-      typedefs,
-      apis: [api],
-    });
-
-    fs.writeFileSync(path, rendered);
+    return _.groupBy(operations, (i) => this.resolveApi(i.operation).name);
   }
 
   /**
@@ -109,24 +96,7 @@ class Codegen {
 
     yield await definition_codegen.emit();
 
-    const byApi = {};
-
-    if (this.spec.paths) {
-      for (const path of Object.keys(this.spec.paths)) {
-        for (const method of Object.keys(this.spec.paths[path])) {
-          // if (path === '$path' || method === '$path') continue;
-
-          const operation = this.spec.paths[path][method];
-          const api = this.resolveApi(operation);
-
-          if (api.name in byApi) {
-            byApi[api.name].push({ path, method, operation });
-          } else {
-            byApi[api.name] = [{ path, method, operation }];
-          }
-        }
-      }
-    }
+    const byApi = this.getOperations();
 
     for (const apiName of Object.keys(byApi)) {
       const path = `apis/${apiName}.ts`;
@@ -210,27 +180,20 @@ class FileCodegen {
     if (schema === undefined)
       return 'undefined';
 
-    const schemaMatch = /^.*#\/components\/schemas\/([^/]+)$/.test(schema.$path);
-
-    // If the schema points to a schema object under `#/components/schemas`,
-    // create a typedef for the schema or import an existing one.
-    // if (schemaMatch) {
+    // Check whether there already exists a type definition generated from
+    // this path in the OpenApi document.
     const symbol = this.scope.find((entry) =>
       entry.type === 'definition' &&
       entry.spec_path === schema.$path);
 
+    // If a type definition has already been generated elsewhere,
+    // import it to the local scope instead of generateing a duplicate.
     if (symbol) {
       return this.scope.import(symbol.local_name);
     }
 
-    /*const short_name = schema.$path.split('/').pop();
-      let remote_schema = this.spec.resolve(schema.$path);
-
-      this.generateTypedef(short_name, remote_schema);
-
-      return short_name;
-    }*/
-
+    // The allOf-property maps nicely to TypeScript union types.
+    // Recursively resolve types for the union members.
     if (schema.allOf) {
       return schema.allOf
         .map((item) => this.resolveSchemaType(item))
@@ -294,8 +257,6 @@ class FileCodegen {
 
       if (def.properties) {
         for (const name of Object.keys(def.properties)) {
-          // if (name === '$path') continue;
-
           const prop = def.properties[name];
 
           properties[name] = {
@@ -361,7 +322,6 @@ class FileCodegen {
     };
 
     let parameters = (operation.parameters || [])
-      // .map((param) => this.spec.dereference(param))
       .map((param) => ({
         argument_name: getUniqueSymbolName(param.name),
         path_name: param.name,
@@ -389,48 +349,14 @@ class FileCodegen {
       });
     }
 
-    let responses = [];
+    // Extract information about all different responses
+    // (status code and content-type combinations) defined
+    // for this operation.
+    let responses = this.getOperationResponses(operation, name);
 
-    const returnTypes = [];
-
-    for (const statusCode of Object.keys(operation.responses || {})) {
-      for (const contentType of Object.keys(operation.responses[statusCode].content || {})) {
-        // if (statusCode === '$path' || contentType === '$path') continue;
-
-        const response = operation.responses[statusCode].content[contentType];
-        const translation = response['x-codegen-translate-response'];
-        let schema = response.schema;
-
-        if (translation) {
-          schema = this.spec.resolveSchemaPath(schema, translation);
-          responses.push({
-            statusCode,
-            contentType,
-            translation,
-          });
-        } else if (schema.type === 'object') {
-          const props = Object.keys(schema.properties || {});
-            //.filter(p => p !== '$path');
-
-          if (
-            schema.type === 'object' &&
-            schema.properties &&
-            props.length === 1
-          ) {
-            schema = schema.properties[props[0]];
-            responses.push({
-              statusCode,
-              contentType,
-              translation: props[0],
-            });
-          }
-        }
-
-        returnTypes.push(
-          this.resolveSchemaType(schema, capitalize(name) + statusCodeNames[parseInt(statusCode)] + 'Response')
-        );
-      }
-    }
+    const returnTypes = responses
+      .map(i => i.returnType)
+      .filter(_.identity);
 
     if (returnTypes.length === 0) {
       returnTypes.push('void');
@@ -443,11 +369,69 @@ class FileCodegen {
       jsdoc: this.generateOperationJsdoc(operation),
       parameters,
       returnType: removeDuplicates(returnTypes).join(' | '),
-      responses,
+      responseTranslations: responses.filter(r => r.translation),
       bodyParameter,
     });
   }
 
+  getOperationResponses(operation, name) {
+    const responses = [];
+
+    for (const [statusCode, value] of Object.entries(operation.responses)) {
+      if (!value.content)
+        continue;
+
+      for (const [contentType, responseDef] of Object.entries(value.content)) {
+        const translation = responseDef['x-codegen-translate-response'];
+        let schema = responseDef.schema;
+
+        let response = {
+            statusCode,
+            contentType,
+        };
+
+        if (translation) {
+          schema = this.spec.resolveSchemaPath(schema, translation);
+          responses.push({
+            statusCode,
+            contentType,
+            translation,
+          });
+        } else if (schema.type === 'object') {
+          const props = Object.keys(schema.properties || {});
+
+          if (
+            schema.type === 'object' &&
+            schema.properties &&
+            props.length === 1
+          ) {
+            schema = schema.properties[props[0]];
+            response.translation = props[0];
+          }
+        }
+
+        response.returnType = this.resolveSchemaType(
+          schema,
+          capitalize(name) + statusCodeNames[parseInt(statusCode)] + 'Response',
+        );
+
+        responses.push(response);
+      }
+    }
+
+    return responses;
+  }
+
+  /**
+   * Creates a TypeScript expression that constructs the URL path for the operation
+   * from operation arguments.
+   *
+   * @param {object} operation - Operation definition.
+   * @param {string} path - Path template as defined in the operation definition.
+   * @param {Array.<object>} parameters - List of parameters defined for the operation method.
+   *
+   * @returns A string containing a TypeScript expression.
+   */
   generatePathExpression(operation, path, parameters) {
     const inner = path.replace(/{([^}]+)}/g, (_, p1) => {
       const param = parameters
@@ -472,6 +456,9 @@ class FileCodegen {
    * as well as descriptions of any possible parameters.
    *
    * @param operation - OpenApi operation object.
+   *
+   * @returns String containing the documentation comment's contents,
+   *    excluding the comment syntax.
    */
   generateOperationJsdoc(operation) {
     let jsdoc = operation.summary || '';
@@ -484,8 +471,6 @@ class FileCodegen {
       let paramlines = [];
 
       for (let param of operation.parameters) {
-        // param = this.spec.dereference(param);
-
         if (param.description) {
           paramlines.push(`@param ${param.name} - ${param.description}`);
         }
@@ -501,6 +486,12 @@ class FileCodegen {
     return jsdoc;
   }
 
+  /**
+   * Generates the code for the APIs and type definitions by rendering
+   * the EJS templates.
+   *
+   * @returns String containing TypeScript code.
+   */
   async render() {
     const template = await readFile('./templates/api.ejs');
 
@@ -537,10 +528,6 @@ class FileCodegen {
     });
 
     return rendered;
-  }
-
-  async emitFile () {
-    await writeFile(this.filename, await this.render());
   }
 }
 
