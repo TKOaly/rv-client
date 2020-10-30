@@ -67,12 +67,14 @@ class Scope {
    * @returns The name, by which the imported symbol is known in the local scope.
    */
   import(name, local_name = null) {
-    // Find an existing import of the same symbol.
+    // Check whether the wanted symbol is already in the local scope,
+    // either because it was defined in the local scope or imported
+    // previously.
     const existing = Object.values(this.table)
-      .find(({ type, source, local_name }) => (type === 'import' && source === name) || (type === 'definition' && local_name === name ));
+      .find(({ type, source, local_name }) =>
+        (type === 'import' && source === name) ||
+        (type === 'definition' && local_name === name ));
 
-    // Do not add redundant import, if we already
-    // have what we want in the scope.
     if (existing) {
       return existing.local_name;
     }

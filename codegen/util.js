@@ -1,3 +1,9 @@
+/**
+ * Creates a new array from the input array
+ * and removes any duplicate items.
+ *
+ * @returns An array where each item is unique.
+ */
 function removeDuplicates(array) {
   const newArray = [];
 
