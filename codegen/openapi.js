@@ -73,57 +73,70 @@ function deref(doc, path = '#', root = undefined) {
   return ret;
 }
 
-class OpenApiDocument {
-  constructor (inner) {
-    this.inner = inner;
+/**
+ * Creates a Proxy object, which lazily dereferences any internal references in the document
+ * and adds a `$path` property to all objects which contains the location of that object
+ * in relation to the document's root.
+ *
+ * The added `$path` property is immutable and non-enumerable.
+ *
+ * @param {any} value - If the value is not object or array, it is returned as-is.
+ * @param {string} path - Path of the value in relation to `_root`. Defaults to `#`.
+ * @param {object} _root - Root of the document, which is used to resolve any references
+ *    in `value`. Defaults to `value` itself.
+ *
+ * @returns Lazily dereferencing Proxy object for `value`.
+ */
+const createOpenApiObject = (value, path = '#', _root = null) => {
+  let root = _root;
+
+  if (root === null) {
+    root = value;
   }
 
-  resolve (pointer) {
-    return resolve(this.inner, pointer);
+  // If value contains a reference, resolve the reference for a new value.
+  if (value && value.$ref) {
+    path = value.$ref;
+    value = resolve(root, value.$ref);
   }
 
-  /**
-   * If the given value contains a reference, returns the referenced value.
-   * Otherwise returns the given value.
-   */
-  dereference(value) {
-    if (value.$ref !== undefined) {
-      return resolve(this.inner, value.$ref);
-    } else {
-      return value;
-    }
+  // We cannot define new properties for plain-old-data types,
+  // so we'll just return them as-is.
+  if (typeof value !== 'object') {
+    return value;
   }
 
-  resolveSchemaPath(schema, pointer) {
-    const parts = pointer.split('.');
+  // Afaik, there is no way to clone both Arrays and Object using a single method,
+  // in a way that preserves arrays correctly.
+  if (Array.isArray(value)) {
+    value = [ ...value ];
+  } else {
+    value = { ...value };
+  }
 
-    for (const part of parts) {
-      let dereferenced = this.dereference(schema);
+  Object.defineProperty(value, '$path', {
+    enumerable: false,
+    writable: false,
+    value: path,
+  });
 
-      if (dereferenced.type === 'object') {
-        if (dereferenced.properties) {
-          schema = dereferenced.properties[part];
-        } else {
-          return undefined;
-        }
-      } else if (dereferenced.type === 'array') {
-        if (dereferenced.items) {
-          schema = dereferenced.items;
-        } else {
-          return undefined;
-        }
-      } else {
-        throw new Error('invalid schema path: ' + pointer);
+  return new Proxy(value, {
+    get (target, prop, receiver) {
+      let _path = null;
+
+      // prop is not neccessairly a string or number in normal operation.
+      // For example, Iterators use internally Symbol-objects as property keys.
+      if (typeof prop === 'string' || typeof prop === 'number') {
+        _path = path + '/' + prop;
       }
+
+      return createOpenApiObject(target[prop], _path, root);
     }
-
-    return schema;
-  }
-}
-
+  });
+};
 
 module.exports = {
   resolve,
   deref,
-  OpenApiDocument,
+  createOpenApiObject,
 };

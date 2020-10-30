@@ -7,7 +7,7 @@ const stream = require('stream');
 const Vinyl = require('vinyl');
 
 const { statusCodeNames } = require('./http'); 
-const { OpenApiDocument, resolve, deref } = require('./openapi');
+const { createOpenApiObject } = require('./openapi');
 const { capitalize, removeDuplicates } = require('./util');
 const { Scope } = require('./scope');
 
@@ -98,7 +98,7 @@ class Codegen {
       'definitions.ts',
       definition_scope,
       null,
-      new OpenApiDocument(this.spec)
+      this.spec
     );
 
     if (this.spec.components && this.spec.components.schemas) {
@@ -114,7 +114,7 @@ class Codegen {
     if (this.spec.paths) {
       for (const path of Object.keys(this.spec.paths)) {
         for (const method of Object.keys(this.spec.paths[path])) {
-          if (path === '$path' || method === '$path') continue;
+          // if (path === '$path' || method === '$path') continue;
 
           const operation = this.spec.paths[path][method];
           const api = this.resolveApi(operation);
@@ -134,14 +134,13 @@ class Codegen {
       api_scope.import('client.Client', 'Client');
       api_scope.define(apiName, { public: true });
 
-      const api_codegen = new FileCodegen(path, api_scope, apiName, new OpenApiDocument(this.spec));
+      const api_codegen = new FileCodegen(path, api_scope, apiName, this.spec);
 
       for (const { path, method, operation } of byApi[apiName]) {
         api_codegen.generateOperation(path, method, operation);
       }
 
       yield await api_codegen.emit();
-      // api_codegen.emitFile();
     }
 
     yield await this.generateIndex(root_scope, 'index.ts');
@@ -295,14 +294,13 @@ class FileCodegen {
 
       if (def.properties) {
         for (const name of Object.keys(def.properties)) {
-          if (name === '$path') continue;
+          // if (name === '$path') continue;
 
           const prop = def.properties[name];
-          const deref = this.spec.dereference(prop);
 
           properties[name] = {
             type: this.resolveSchemaType(prop),
-            jsdoc: deref.description,
+            jsdoc: prop.description,
           }
         }
       }
@@ -363,7 +361,7 @@ class FileCodegen {
     };
 
     let parameters = (operation.parameters || [])
-      .map((param) => this.spec.dereference(param))
+      // .map((param) => this.spec.dereference(param))
       .map((param) => ({
         argument_name: getUniqueSymbolName(param.name),
         path_name: param.name,
@@ -397,7 +395,7 @@ class FileCodegen {
 
     for (const statusCode of Object.keys(operation.responses || {})) {
       for (const contentType of Object.keys(operation.responses[statusCode].content || {})) {
-        if (statusCode === '$path' || contentType === '$path') continue;
+        // if (statusCode === '$path' || contentType === '$path') continue;
 
         const response = operation.responses[statusCode].content[contentType];
         const translation = response['x-codegen-translate-response'];
@@ -411,8 +409,8 @@ class FileCodegen {
             translation,
           });
         } else if (schema.type === 'object') {
-          const props = Object.keys(schema.properties || {})
-            .filter(p => p !== '$path');
+          const props = Object.keys(schema.properties || {});
+            //.filter(p => p !== '$path');
 
           if (
             schema.type === 'object' &&
@@ -453,7 +451,9 @@ class FileCodegen {
   generatePathExpression(operation, path, parameters) {
     const inner = path.replace(/{([^}]+)}/g, (_, p1) => {
       const param = parameters
-        .find((param) => param.path_name === p1);
+        .find((param) => {
+          return param.path_name === p1;
+        });
 
       if (param === undefined) {
         throw new Error(`parameter '${p1}' used in path but not defined (${operation.operationId})`);
@@ -484,7 +484,7 @@ class FileCodegen {
       let paramlines = [];
 
       for (let param of operation.parameters) {
-        param = this.spec.dereference(param);
+        // param = this.spec.dereference(param);
 
         if (param.description) {
           paramlines.push(`@param ${param.name} - ${param.description}`);
@@ -548,7 +548,7 @@ module.exports = function codegen(filename) {
   return stream.Readable.from(async function* () {
     const contents = await readFile(filename);
     const spec = yaml.safeLoad(contents);
-    const codegen = new Codegen(deref(spec));
+    const codegen = new Codegen(createOpenApiObject(spec));
     yield* codegen.generate();
   }());
 }
