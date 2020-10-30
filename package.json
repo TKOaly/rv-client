@@ -1,6 +1,6 @@
 {
   "name": "@tkoaly/rv-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Client for the Ruokavälitys HTTP API",
   "main": "dist/index.js",
   "publishConfig": {
