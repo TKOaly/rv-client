@@ -561,6 +561,20 @@ class FileCodegen {
       }
     }
 
+    if (schema.enum) {
+      let variantFormat = null;
+
+      if (schema.type === 'string') {
+        variantFormat = (v) => `"${escape(v, '"')}"`;
+      } else if (variant.type === 'integer' || variant.type === 'number') {
+        variantFormat = (v) => '' + v;
+      }
+
+      if (variantFormat) {
+        return schema.enum.map(variantFormat).join(' | ');
+      }
+    }
+
     if (schema.type === undefined) {
       return 'any';
     }
